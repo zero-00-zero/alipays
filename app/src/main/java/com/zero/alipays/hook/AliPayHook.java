@@ -141,6 +141,7 @@ class AliPayHook {
 
 
 
+        //自动抢群红包
         XposedHelpers.findAndHookMethod("com.alipay.mobile.socialcommonsdk.bizdata.chat.data.GroupChatMsgDaoOp", mLoader, "saveMessages", List.class, boolean.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -152,20 +153,13 @@ class AliPayHook {
                     XposedHelpers.setObjectField(data, "msgIndex", f);
                     final String templateCode = XposedHelpers.findField(data.getClass(), "templateCode").get(data).toString();
                     String templateData = XposedHelpers.findField(data.getClass(), "templateData").get(data).toString();
-                    Log.e("xposed", templateCode + "         " + templateData + (templateCode.contains("8003") && templateData.contains("二维码加入了群聊")));
                     if (templateCode.contains("107")) {
                         final String link = XposedHelpers.findField(data.getClass(), "link").get(data).toString();
                         final String bizRemind = XposedHelpers.findField(data.getClass(), "bizRemind").get(data).toString();
-                        Log.e(TAG, "link" + link);
-                        Log.e(TAG, "bizRemind" + bizRemind + "状态：");
                         if (bizRemind.equals("[红包]") && templateData.contains("红包")) {
-
                             String datas = JSON.parseObject(link).getString("link");
-                            Log.e("xposedjson", "link:    " + datas);
                             Map<String, String> mapRequest = CRequest.URLRequest(datas);
-
                             String roomid = StringUtil.getString(JSON.parseObject(link).getString("msgIndex"), "_");
-                            Log.e("xposedjson", "roomid:    " + roomid);
                             Class AlipayApplication = findClass("com.alipay.mobile.framework.AlipayApplication", mLoader);
                             Object getInstance = XposedHelpers.callStaticMethod(AlipayApplication, "getInstance");
                             Object getMicroApplicationContext = XposedHelpers.callMethod(getInstance, "getMicroApplicationContext");
@@ -183,7 +177,6 @@ class AliPayHook {
                             XposedHelpers.setObjectField(GiftCrowdReceiveReq, "sign", mapRequest.get("sign"));
                             XposedHelpers.setObjectField(GiftCrowdReceiveReq, "clientMsgID", mapRequest.get("clientMsgId"));
                             XposedHelpers.setObjectField(GiftCrowdReceiveReq, "receiverId", XposedHelpers.findField(userInfo.getClass(), "userId").get(userInfo).toString());
-
                             Map<String, String> extInfo = new HashMap<>();
                             extInfo.put("feedId", "");
                             extInfo.put("canLocalMessage", "Y");
@@ -193,12 +186,27 @@ class AliPayHook {
                             XposedHelpers.setObjectField(GiftCrowdReceiveReq, "extInfo", extInfo);
                             Object gif = XposedHelpers.callMethod(Gift, "receiveCrowd", GiftCrowdReceiveReq);
 
-
-                            Log.e("xposedjson", gson.toJson(gif));
+                            XposedBridge.log("xposedjson"+ gson.toJson(gif));
                         }
                     }
 
                 }
+            }
+        });
+
+
+
+        //监听支付宝的收款信息
+        Class AcceptedData = XposedHelpers.findClass("com.alipay.mobile.common.amnet.api.model.AcceptedData", mLoader);
+        XposedHelpers.findAndHookMethod("com.alipay.pushsdk.push.amnet.AmnetPushDataConverter",mLoader, "AmnetToPush", AcceptedData, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Object Packet = param.getResult();
+                XposedBridge.log("AmnetPushDataConverter返回数据" + gson.toJson(Packet));
+                String maxdata = XposedHelpers.findField(Packet.getClass(), "j").get(Packet).toString();
+                XposedBridge.log(("xposedjson" + maxdata));
+
+
             }
         });
     }
